@@ -24,7 +24,7 @@ public class XPath_Runner{
         // Visit
         EvalVistor visitor = new EvalVistor();
         ArrayList<Node> res = visitor.visit(tree);
-        System.out.println(res.size());
+        //System.out.println(res.size());
         // Build result String
         StringBuilder resStr = new StringBuilder();
         for (Node node : res) {

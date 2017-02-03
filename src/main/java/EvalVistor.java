@@ -125,7 +125,8 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
         ArrayList<Node> result = new ArrayList<Node>();
 
         for (Node node : stack.peek()) {
-            result.add(node.getFirstChild());
+            if (node.getNodeType() != 3)
+                result.add(node.getFirstChild());
         }
 
         return result;
@@ -256,6 +257,8 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     private boolean idContains(ArrayList<Node> nodelist, Node node) {
         for (Node n : nodelist) {
+            System.out.println(n.getNodeType());
+            System.out.println(node.getNodeType());
             if (n.isSameNode(node)) {
                 return true;
             }
