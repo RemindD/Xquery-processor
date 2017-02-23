@@ -323,4 +323,10 @@ public interface XQueryVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitCondparen(XQueryParser.CondparenContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link XQueryParser#somecond}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSomecond(XQueryParser.SomecondContext ctx);
 }

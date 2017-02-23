@@ -27,7 +27,36 @@ doc("j_caesar.xml")/PLAY/../../..
 
 
 #XQuery
-null string will miss the first tag, why?
 
+###XQuery Expression #1 for xqvar, xqstring, xqtag, xqparen, xqap, xqconcat, xqslash, xqdoubleslash
+<acts> 
+ {	for $a in doc("j_caesar.xml")//ACT, $b in $a//TITLE
+where empty ( for $sp in $a/SCENE/SPEECH/SPEAKER
+ where $sp/text() = "CASCA"
+   return <speaker> {$sp/text()}</speaker>
+     )
+     return <act>{$b/text()}</act>
+        }
+</acts>
+
+###XQuery Expression #2 for let clause, xqlet
+<acts> 
+ {	for $a in doc("j_caesar.xml")//ACT
+  let $b := $a/TITLE
+where empty ( for $sp in $a/SCENE/SPEECH/SPEAKER
+ where $sp/text() = "CASCA"
+   return <speaker> {$sp/text()}</speaker>
+     )
+     return <act>{$b/text()}</act>
+        }
+</acts>
+
+###XQuery Expression #3 for some clause
+<acts> 
+ {	for $a in doc("j_caesar.xml")//ACT
+    where some $c in $a/TITLE satisfies $c/text() = "ACT II" or $c/text() = "ACT I"
+     return <act>{$c/text()}</act>
+        }
+</acts>
 
 

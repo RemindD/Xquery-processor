@@ -23,7 +23,7 @@ lwr
     :   letClause? whereClause? returnClause
 ;
 letClause
-    : 'let' varname ':=' query (',' varname ':=' query )
+    : 'let' varname ':=' query (',' varname ':=' query )*
 ;
 
 whereClause : 'where' cond;
@@ -70,13 +70,16 @@ cond
     : query ('='|'eq') query           #condvaleq
     | query ('=='|'is') query          #condeq
     | 'empty' '(' query ')'            #condempty
-    | 'some' varname 'in' query (',' varname 'in' query)* 'satisfies' cond  #condexist
+    | somecond                         #condexist
     | '(' cond ')'                     #condparen
     | cond 'and' cond                  #condand
     | cond 'or' cond                   #condor
     | 'not' cond                       #condnot
 ;
 
+somecond
+    : 'some' varname 'in' query (somecond | ('satisfies' cond))
+;
 fragment
 Letter
     : [a-zA-Z_]

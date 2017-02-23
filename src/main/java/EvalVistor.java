@@ -1,21 +1,17 @@
 import org.w3c.dom.*;
 import org.w3c.dom.Document;
-import java.lang.reflect.Array;
 import java.util.*;
 import org.antlr.v4.runtime.tree.*;
 import javax.xml.parsers.*;
 import java.io.*;
 import com.sun.org.apache.xerces.internal.dom.DocumentImpl;
-import org.antlr.v4.runtime.*;
 
 public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
-    public static boolean debugOn = false;
     private Stack<ArrayList<Node>> stack = new Stack<ArrayList<Node>>();
-    // TODO:
     private LinkedList<HashMap<String, ArrayList<Node>>> variableList = new LinkedList<HashMap<String, ArrayList<Node>>>();
     private Document tree = new DocumentImpl();
-    public EvalVistor() {
+    EvalVistor() {
         stack.push(new ArrayList<Node>());
     }
 
@@ -25,19 +21,7 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
         stack.pop();
         return res;
     }
-
-    private void debug(ParserRuleContext ctx) {
-        if (!debugOn) return;
-        System.out.println("CTX: " + ctx.getClass().getName());
-        for (Node node : stack.peek()) {
-            System.out.println("State : " + node.getNodeName());
-        }
-        System.out.println("Var:");
-        for (int i=0; i<variableList.size(); ++i) {
-            for (String s :variableList.get(i).keySet())
-                System.out.println(s);
-        }
-    }
+    
 
     private ArrayList<Node> visit_descendent_or_self(ArrayList<Node> current_Node, RuleNode ruleNode) {
         ArrayList<Node> result = new ArrayList<Node>();
@@ -58,10 +42,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
                 if (!idContains(result, node2))
                     result.add(node2);
             }
-            //result.addAll(rpSlashSlashRp);
-
-            //System.out.println("rpSlashRp: " + rpSlashRp.size());
-            //System.out.println("rpSlashSlashRp: " + rpSlashSlashRp.size());
         }
 
         return result;
@@ -91,15 +71,11 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitXqap(XQueryParser.XqapContext ctx) {
-        debug(ctx);
-
         return visitNode(stack.peek(), ctx.ap());
     }
 
     @Override
     public ArrayList<Node> visitXqtag(XQueryParser.XqtagContext ctx) {
-        debug(ctx);
-
         Node resultNode = tree.createElement(ctx.string(0).getText());
         ArrayList<Node> Nodelist = visitNode(stack.peek(), ctx.query());
         for (Node node: Nodelist) {
@@ -113,28 +89,18 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitXqvar(XQueryParser.XqvarContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> result = new ArrayList<Node>();
-//        ArrayList<Node> nodelist = new ArrayList<Node>();
         for (Map<String, ArrayList<Node>> temp: variableList) {
             if (temp.containsKey(ctx.varname().getText())) {
-                // nodelist = temp.get(ctx.varname().getText());
-                // break;
                 result = temp.get(ctx.varname().getText());
                 break;
             }
         }
-//        for (Node node : nodelist) {
-//            result.add(node);
-//        }
         return result;
     }
 
     @Override
     public ArrayList<Node> visitXqconcat(XQueryParser.XqconcatContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.query(0));
         ArrayList<Node> res2 = visitNode(stack.peek(), ctx.query(1));
 
@@ -150,16 +116,12 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitXqslash(XQueryParser.XqslashContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> temp = visitNode(stack.peek(), ctx.query());
         return visitNode(temp, ctx.rp());
     }
 
     @Override
     public ArrayList<Node> visitXqdoubleslash(XQueryParser.XqdoubleslashContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> temp = visitNode(stack.peek(), ctx.query());
         return visit_descendent_or_self(temp, ctx.rp());
     }
@@ -168,15 +130,11 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitXqparen(XQueryParser.XqparenContext ctx) {
-        debug(ctx);
-
         return visitNode(stack.peek(), ctx.query());
     }
 
     @Override
     public ArrayList<Node> visitXqstring(XQueryParser.XqstringContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> result = new ArrayList<Node>();
         String str = ctx.sentence().getText();
         result.add(tree.createTextNode(str.substring(1, str.length()-1)));
@@ -226,8 +184,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitXqlet(XQueryParser.XqletContext ctx) {
-        debug(ctx);
-
         variableList.addFirst(new HashMap<String, ArrayList<Node>>());
         visitNode(stack.peek(), ctx.letClause());
         ArrayList<Node> result = visitNode(stack.peek(), ctx.query());
@@ -238,8 +194,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitLetClause(XQueryParser.LetClauseContext ctx) {
-        debug(ctx);
-
         for (int i=0; i<ctx.query().size(); i++) {
             ArrayList<Node> varValue = visitNode(stack.peek(), ctx.query(i));
             variableList.peek().put(ctx.varname(i).getText(), varValue);
@@ -249,15 +203,11 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitWhereClause(XQueryParser.WhereClauseContext ctx) {
-        debug(ctx);
-
         return visitNode(stack.peek(), ctx.cond());
     }
 
     @Override
     public ArrayList<Node> visitReturnClause(XQueryParser.ReturnClauseContext ctx) {
-        debug(ctx);
-
         return visitNode(stack.peek(), ctx.query());
     }
 
@@ -308,28 +258,38 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitCondexist(XQueryParser.CondexistContext ctx) {
-        variableList.addFirst(new HashMap<String, ArrayList<Node>>());
-        for (int i=0; i<ctx.query().size();++i) {
-            String varName = ctx.varname(i).getText();
-            ArrayList<Node> varList = visitNode(stack.peek(), ctx.query(i));
+        return visitNode(stack.peek(), ctx.somecond());
+    }
+
+    @Override
+    public ArrayList<Node> visitSomecond(XQueryParser.SomecondContext ctx) {
+        String varName = ctx.varname().getText();
+        ArrayList<Node> varList = visitNode(stack.peek(), ctx.query());
+
+        for (Node v : varList) {
+            variableList.addFirst(new HashMap<String, ArrayList<Node>>());
             ArrayList<Node> tmpContext = new ArrayList<Node>();
-            for (Node v: varList) {
-                tmpContext.add(v);
-            }
+            tmpContext.add(v);
             variableList.peek().put(varName, tmpContext);
+            if (ctx.somecond() != null) {
+                ArrayList<Node> temp = visitNode(stack.peek(), ctx.somecond());
+                if (temp != null)
+                    return new ArrayList<Node>();
+
+            } else {
+                ArrayList<Node> temp = visitNode(stack.peek(), ctx.cond());
+                if (temp != null)
+                    return new ArrayList<Node>();
+            }
+            variableList.removeFirst();
         }
-
-        ArrayList<Node> result = visitNode(stack.peek(), ctx.cond());
-        variableList.removeFirst();
-
-        return result;
+        return null;
     }
 
     @Override
     public ArrayList<Node> visitCondand(XQueryParser.CondandContext ctx) {
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.cond(0));
         ArrayList<Node> res2 = visitNode(stack.peek(), ctx.cond(1));
-
         if (res1 != null && res2 != null)
             return new ArrayList<Node>();
         else
@@ -340,7 +300,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
     public ArrayList<Node> visitCondor(XQueryParser.CondorContext ctx) {
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.cond(0));
         ArrayList<Node> res2 = visitNode(stack.peek(), ctx.cond(1));
-
         if (res1 != null || res2 != null)
             return new ArrayList<Node>();
         else
@@ -357,8 +316,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
      */
     @Override
     public ArrayList<Node> visitApslash(XQueryParser.ApslashContext ctx) {
-        debug(ctx);
-
         String fileName = ctx.sentence().getText();
         fileName = fileName.substring(1, fileName.length()-1); // delete quotes
         File xmlFile = new File(fileName);
@@ -381,8 +338,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitApdoubleslash(XQueryParser.ApdoubleslashContext ctx) {
-        debug(ctx);
-
         String fileName = ctx.sentence().getText();
         fileName = fileName.substring(1, fileName.length()-1); // delete quotes
         File xmlFile = new File(fileName);
@@ -404,30 +359,23 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitRpparen(XQueryParser.RpparenContext ctx) {
-        debug(ctx);
-
         return visitNode(stack.peek(), ctx.rp());
     }
 
     public ArrayList<Node> visitRpself(XQueryParser.RpselfContext ctx) {
-        debug(ctx);
-
         return stack.peek();
     }
 
     public ArrayList<Node> visitRpparent(XQueryParser.RpparentContext ctx){
-        debug(ctx);
-
         ArrayList<Node> current_Node = stack.peek();
         ArrayList<Node> result=new ArrayList<Node>();
-        for (int i=0; i<current_Node.size(); ++i) {
-            Node temp = current_Node.get(i);
+        for (Node temp :current_Node) {
             if (temp == null) continue;
             Node node;
             if (temp.getNodeType() == 2)
                 node = ((Attr)temp).getOwnerElement();
             else
-                node = current_Node.get(i).getParentNode();
+                node = temp.getParentNode();
             // need unique
             if (!idContains(result, node))
                 result.add(node);
@@ -440,8 +388,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitRptext(XQueryParser.RptextContext ctx){
-        debug(ctx);
-
         ArrayList<Node> result = new ArrayList<Node>();
 
         for (Node node : stack.peek()) {
@@ -453,28 +399,22 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
     }
     @Override
     public ArrayList<Node> visitRpslash(XQueryParser.RpslashContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.rp(0));
-        ArrayList<Node> res2 = visitNode(res1, ctx.rp(1));
-        return res2;
+        return visitNode(res1, ctx.rp(1));
     }
     @Override
     public ArrayList<Node> visitRpdoubleslash(XQueryParser.RpdoubleslashContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.rp(0));
-        ArrayList<Node> res = visit_descendent_or_self(res1, ctx.rp(1));
-        return res;
+        return visit_descendent_or_self(res1, ctx.rp(1));
     }
     @Override
     public ArrayList<Node> visitRpchild(XQueryParser.RpchildContext ctx) {
-        debug(ctx);
+        
 
         ArrayList<Node> result = new ArrayList<Node>();
         ArrayList<Node> current_Node = stack.peek();
-        for (int i=0; i<current_Node.size(); ++i) {
-            NodeList children = current_Node.get(i).getChildNodes();
+        for (Node node: current_Node) {
+            NodeList children = node.getChildNodes();
             for (int j=0; j<children.getLength(); ++j) {
                 result.add(children.item(j));
             }
@@ -484,14 +424,12 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
     }
     @Override
     public ArrayList<Node> visitRptag(XQueryParser.RptagContext ctx) {
-        debug(ctx);
-
         String tagName = ctx.string().getText();
 
         ArrayList<Node> current_Node = stack.peek();
         ArrayList<Node> result = new ArrayList<Node>();
-        for (int i=0; i<current_Node.size(); ++i) {
-            NodeList children = current_Node.get(i).getChildNodes();
+        for (Node temp : current_Node) {
+            NodeList children = temp.getChildNodes();
             for (int j=0; j<children.getLength(); ++j) {
                 Node node = children.item(j);
                 if (node.getNodeName().equals(tagName))
@@ -503,8 +441,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
     }
     @Override
     public ArrayList<Node> visitRpcancat(XQueryParser.RpcancatContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.rp(0));
         ArrayList<Node> res2 = visitNode(stack.peek(), ctx.rp(1));
 
@@ -514,18 +450,12 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitRpfilter(XQueryParser.RpfilterContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.rp());
-        ArrayList<Node> result = visitNode(res1, ctx.f());
-
-        return result;
+        return visitNode(res1, ctx.f());
     }
 
     @Override
     public ArrayList<Node> visitRpattr(XQueryParser.RpattrContext ctx){
-        debug(ctx);
-
         ArrayList<Node> result = new ArrayList<Node>();
         String attName = ctx.string().getText();
         for(Node node : stack.peek()) {
@@ -539,8 +469,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitFltor(XQueryParser.FltorContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> current_Node = stack.peek();
         ArrayList<Node> res1 = new ArrayList<Node>();
         ArrayList<Node> res2 = new ArrayList<Node>();
@@ -564,8 +492,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitFltnot(XQueryParser.FltnotContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> notres = new ArrayList<Node>();
         ArrayList<Node> res = new ArrayList<Node>();
         for (Node node : stack.peek()) {
@@ -585,8 +511,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitFltrpeq(XQueryParser.FltrpeqContext ctx){
-        debug(ctx);
-
         ArrayList<Node> res = new ArrayList<Node>();
         for(Node node : stack.peek()) {
             ArrayList<Node> tmpContext = new ArrayList<Node>();
@@ -606,8 +530,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
     //empty function
     @Override
     public ArrayList<Node> visitFltrpvaleq(XQueryParser.FltrpvaleqContext ctx){
-        debug(ctx);
-
         ArrayList<Node> res = new ArrayList<Node>();
         for(Node node : stack.peek()) {
             ArrayList<Node> tmpContext = new ArrayList<Node>();
@@ -626,8 +548,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitFltrp(XQueryParser.FltrpContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> result = new ArrayList<Node>();
         for (Node node : stack.peek()) {
             ArrayList<Node> tmp = new ArrayList<Node>();
@@ -641,15 +561,11 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     @Override
     public ArrayList<Node> visitFltparen(XQueryParser.FltparenContext ctx) {
-        debug(ctx);
-
         return visitNode(stack.peek(), ctx.f());
     }
 
     @Override
     public ArrayList<Node> visitFltand(XQueryParser.FltandContext ctx) {
-        debug(ctx);
-
         ArrayList<Node> current_Node = stack.peek();
         ArrayList<Node> result = new ArrayList<Node>();
         ArrayList<Node> res1 = new ArrayList<Node>();
@@ -668,7 +584,6 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
             if (res2.contains(node))
                 result.add(node);
         }
-
         return result;
     }
 
