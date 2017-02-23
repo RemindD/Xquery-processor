@@ -19,18 +19,20 @@ public class XPath_Runner{
         XQueryLexer lexer = new XQueryLexer(inputStream);
         CommonTokenStream tokenStream = new CommonTokenStream(lexer);
         XQueryParser parser = new XQueryParser(tokenStream);
-        ParseTree tree = parser.ap();
+        //ParseTree tree = parser.ap();
+        ParseTree tree = parser.query();
 
         // Visit
         EvalVistor visitor = new EvalVistor();
         ArrayList<Node> res = visitor.visit(tree);
-        //System.out.println(res.size());
+        System.out.println(res.size());
         // Build result String
         StringBuilder resStr = new StringBuilder();
         for (Node node : res) {
             if (node == null) continue;
             String str;
             System.out.println(node.getNodeType());
+
             if (node.getNodeType() != 2) {
                 str = nodeToString(node);
                 resStr.append(str.substring(str.indexOf("?>") + 2));

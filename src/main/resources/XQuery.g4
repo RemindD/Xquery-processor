@@ -1,26 +1,29 @@
 grammar XQuery;
 
 // XQuery
-/*
+
 query
-    : Var                                                   #xqvar
-    | string                                                #xqstring
+    : varname                                               #xqvar
+    | sentence                                              #xqstring
     | ap                                                    #xqap
     | '(' query ')'                                         #xqparen
     | query ',' query                                       #xqconcat
     | query '/' rp                                          #xqslash
     | query  '//' rp                                        #xqdoubleslash
     | '<' string '>' '{' query '}' '</' string '>'          #xqtag
-    | forClause letClause? whereClause? returnClause        #xqclause
+    | 'for' flwr                                            #xqflwr
     | letClause query                                       #xqlet
 ;
 
-forClause
-    : 'for' Var 'in' query (',' Var 'in' query )*
+flwr
+    :   varname 'in' query (lwr | (',' flwr))
 ;
 
+lwr
+    :   letClause? whereClause? returnClause
+;
 letClause
-    : 'let' Var ':=' query (',' Var ':=' query )
+    : 'let' varname ':=' query (',' varname ':=' query )
 ;
 
 whereClause : 'where' cond;
@@ -28,10 +31,10 @@ whereClause : 'where' cond;
 returnClause
     : 'return' query
 ;
-*/
+
 ap
-    : ('doc('|'document(') file ')' '/'  rp #apslash
-    | ('doc('|'document(') file ')' '//' rp #apdoubleslash
+    : ('doc('|'document(') sentence ')' '/'  rp #apslash
+    | ('doc('|'document(') sentence ')' '//' rp #apdoubleslash
 ;
 
 rp
@@ -58,21 +61,22 @@ f
     | 'not' f                               #fltnot
 ;
 
-file: StringLiteral;
+varname: Var;
+sentence: StringLiteral;
 string: StringConstant;
 
-/*
+
 cond
     : query ('='|'eq') query           #condvaleq
     | query ('=='|'is') query          #condeq
-    | 'empty(' query ')'               #condempty
-    | 'some' Var 'in' query (',' Var 'in' query)* 'satisfies' cond  #condexist
+    | 'empty' '(' query ')'            #condempty
+    | 'some' varname 'in' query (',' varname 'in' query)* 'satisfies' cond  #condexist
     | '(' cond ')'                     #condparen
     | cond 'and' cond                  #condand
     | cond 'or' cond                   #condor
     | 'not' cond                       #condnot
 ;
-*/
+
 fragment
 Letter
     : [a-zA-Z_]
