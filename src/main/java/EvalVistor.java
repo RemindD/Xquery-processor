@@ -219,6 +219,8 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.query(0));
         ArrayList<Node> res2 = visitNode(stack.peek(), ctx.query(1));
         for (Node node: res1) {
+            if (node == null)
+                continue;
             if (idContains(res2, node)) {
                 return new ArrayList<Node>();
             }
@@ -231,6 +233,8 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
         ArrayList<Node> res1 = visitNode(stack.peek(), ctx.query(0));
         ArrayList<Node> res2 = visitNode(stack.peek(), ctx.query(1));
         for (Node node: res1) {
+            if (node == null)
+                continue;
             if (valueContains(res2, node)) {
                 return new ArrayList<Node>();
             }
