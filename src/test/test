@@ -1,7 +1,0 @@
-<acts> 
- {	for $a in doc("j_caesar.xml")//ACT
-    let $c := $a
-    where  $c/text() = "ACT II" or $c/text() = "ACT I"
-     return <act>{$c/text()}</act>
-        }
-</acts>
