@@ -7,12 +7,13 @@ query
     | sentence                                              #xqstring
     | ap                                                    #xqap
     | '(' query ')'                                         #xqparen
-    | query ',' query                                       #xqconcat
     | query '/' rp                                          #xqslash
     | query  '//' rp                                        #xqdoubleslash
+    | query ',' query                                       #xqconcat
     | '<' string '>' '{' query '}' '</' string '>'          #xqtag
     | 'for' flwr                                            #xqflwr
     | letClause query                                       #xqlet
+    | joinClause                                            #xqJoin
 ;
 
 flwr
@@ -27,6 +28,12 @@ letClause
 ;
 
 whereClause : 'where' cond;
+
+
+joinClause : 'join' '(' query ',' query ',' attrPairs ',' attrPairs ')';
+
+attrPairs
+	   : '[' string (',' string)* ']';
 
 returnClause
     : 'return' query
@@ -98,6 +105,9 @@ StringConstant: Letter LetterOrDigit*;
 Var: '$' StringConstant;
 
 WS : [ \t\r\n]+ -> skip ;
+
+
+
 
 
 

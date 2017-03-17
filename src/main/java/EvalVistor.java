@@ -1,16 +1,22 @@
-import org.w3c.dom.*;
-import org.w3c.dom.Document;
-import java.util.*;
-import org.antlr.v4.runtime.tree.*;
-import javax.xml.parsers.*;
-import java.io.*;
 import com.sun.org.apache.xerces.internal.dom.DocumentImpl;
+import org.antlr.v4.runtime.tree.RuleNode;
+import org.w3c.dom.*;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.File;
+import java.io.StringWriter;
+import java.util.*;
 
 public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
 
     private Stack<ArrayList<Node>> stack = new Stack<ArrayList<Node>>();
     private LinkedList<HashMap<String, ArrayList<Node>>> variableList = new LinkedList<HashMap<String, ArrayList<Node>>>();
     private Document tree = new DocumentImpl();
+    public TransformerFactory transformerFactory;
     EvalVistor() {
         stack.push(new ArrayList<Node>());
     }
@@ -107,8 +113,10 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
         ArrayList<Node> result = new ArrayList<Node>();
         result.addAll(res1);
         for (Node node : res2) {
+
             if (!idContains(result, node))
                 result.add(node);
+            //result.add(node);
         }
         return result;
     }
@@ -590,5 +598,126 @@ public class EvalVistor extends XQueryBaseVisitor<ArrayList<Node>> {
         }
         return result;
     }
+
+    @Override
+    public ArrayList<Node> visitXqJoin(XQueryParser.XqJoinContext ctx){
+        ArrayList<Node> result = new ArrayList<Node>();
+        ArrayList<Node> query1 = visit(ctx.joinClause().query(0));
+        int attrLen = ctx.joinClause().attrPairs(0).string().size();
+        ArrayList<Map<String, ArrayList<Node>>> mapStringToNode = new ArrayList<Map<String, ArrayList<Node>>>();
+
+        for(int i = 0; i < attrLen; i++){
+            Map<String, ArrayList<Node>> map = new HashMap<String, ArrayList<Node>>();
+            String name1 = ctx.joinClause().attrPairs(0).string(i).getText();
+
+            ArrayList<Node> nodeList;
+            for(Node n : query1){
+                String keyRaw = nodeToString(((Element) n).getElementsByTagName(name1).item(0));
+                String key = keyRaw.substring(name1.length() + 2, keyRaw.length() - name1.length() - 3);
+                if(!map.containsKey(key)) {
+                    nodeList = new ArrayList<Node>();
+                    nodeList.add(n.cloneNode(true));
+                    map.put(key, nodeList);
+                }
+                else {
+                    nodeList = map.get(key);
+                    nodeList.add(n.cloneNode(true));
+                    map.put(key, nodeList);
+                }
+            }
+            mapStringToNode.add(map);
+        }
+
+        ArrayList<Node> query2 = visit(ctx.joinClause().query(1));
+        ArrayList<Node> joinList = new ArrayList<Node>();
+        for(Node n: query2){
+            for(int j = 0; j < attrLen; j++){
+                String name2 = ctx.joinClause().attrPairs(1).string(j).getText();
+                String keyRaw2 = nodeToString(((Element) n).getElementsByTagName(name2).item(0));
+                String key2 = keyRaw2.substring(name2.length() + 2, keyRaw2.length() - name2.length() - 3);
+                if(mapStringToNode.get(j).containsKey(key2)){
+                    if(joinList.isEmpty()) joinList.addAll(mapStringToNode.get(j).get(key2));
+                    else{
+                        ArrayList<Node> filterList = new ArrayList<Node>();
+                        ArrayList<Node> next = mapStringToNode.get(j).get(key2);
+                        HashSet<String> compareStr = new HashSet<String>();
+                        for(Node t : joinList) compareStr.add(nodeToString(t));
+                        for(Node m : next){
+                            if(compareStr.contains(nodeToString(m))){
+                                filterList.add(m.cloneNode(true));
+                            }
+                        }
+                        joinList = filterList;
+                        //if (joinList.isEmpty()) break;
+                    }
+                }
+                else {
+                    joinList.clear();
+                    break;
+                }
+            }
+            if(!joinList.isEmpty()){
+                int len = n.getChildNodes().getLength();
+                Node temp;
+                for(Node p : joinList){
+                    Node newNode = p.cloneNode(true);
+                    for(int w = 0; w < len; w++){
+                        temp = n.getChildNodes().item(w).cloneNode(true);
+                        newNode.appendChild(temp);
+
+                    }
+                    result.add(newNode);
+                }
+                // for (Node n1: joinList) result.add(mergeTuple(n, n1));
+                joinList.clear();
+            }
+
+        }
+        return result;
+    }
+
+    private Node mergeTuple(Node tuple1, Node tuple2) {
+
+        Node joinedNode = tree.createElement("tuple");
+        NodeList nl1 = tuple1.getChildNodes();
+        NodeList nl2 = tuple2.getChildNodes();
+        for (int j=0; j<nl1.getLength(); j++) {
+            Node iNode = tree.importNode(nl1.item(j), true);
+            joinedNode.appendChild(iNode);
+        }
+        for (int j=0; j<nl2.getLength(); j++) {
+            Node iNode = tree.importNode(nl2.item(j), true);
+            joinedNode.appendChild(iNode);
+        }
+
+        return joinedNode;
+    }
+
+    private String nodeToString(Node n){
+        this.transformerFactory = TransformerFactory.newInstance();
+        Transformer transformer = null;
+        StringWriter w = new StringWriter();
+        try{
+            transformer = this.transformerFactory.newTransformer();
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+            DOMSource s = new DOMSource(n);
+            transformer.transform(s, new StreamResult(w));
+        } catch (TransformerConfigurationException e) {
+            e.printStackTrace();
+        } catch(TransformerException e){
+            e.printStackTrace();
+        }
+        return w.toString();
+
+    }
+
+
+
+
+
+
+
+
+
 
 }

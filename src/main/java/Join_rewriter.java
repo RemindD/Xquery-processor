@@ -44,21 +44,14 @@ public class Join_rewriter {
         (new FileInputStream(queryFile)).read(queryBuf);
         String query = (new String(queryBuf)).trim();
 
-        System.out.println("------Original Query------");
-        System.out.println(query);
-
         /* Try to rewrite */
         String res = rewrite(query);
-
-        System.out.println("------Rewritten Query-----");
-        System.out.println(res);
 
         /* Write result back to the file */
         File resultFile = new File(output);
         FileOutputStream outputStream = new FileOutputStream(resultFile);
         outputStream.write(res.getBytes());
     }
-
 }
 
 
@@ -68,25 +61,27 @@ class Join_visiter extends JoinBaseVisitor<Object> {
 
     @Override
     public String visitQuery(JoinParser.QueryContext ctx) {
-
         if (ctx.cond() == null) return null;
 
         for (int i=0; i<ctx.varname().size(); i++) {
             String var = ctx.varname(i).getText();
             String path = ctx.path(i).getText();
-            String var2 = ctx.path(i).varname() == null ? null
-                    :ctx.path(i).varname().getText();
+            String var2;
+            if (ctx.path(i).varname() == null) {
+                var2 = null;
+            }
+            else {
+                var2 = ctx.path(i).varname().getText();
+            }
             tree.addVar(var, var2, path);
         }
 
         for (int i=0; i<ctx.cond().varname().size(); i++) {
             if (ctx.cond().varorsentence(i).varname() != null) {
-                // Not self const condition
                 String var1 = ctx.cond().varname(i).getText();
                 String var2 = ctx.cond().varorsentence(i).varname().getText();
                 tree.addJoin(var1, var2);
             } else {
-                // Self const condition
                 String var = ctx.cond().varname(i).getText();
                 String constant = ctx.cond().varorsentence(i).sentence().getText();
                 tree.addSelfCond(var, constant);
@@ -94,7 +89,6 @@ class Join_visiter extends JoinBaseVisitor<Object> {
         }
         String joinExpression = tree.mergeAllJoinNode();
 
-        /* Replace variables in return */
         String retExpression = ctx.ret().getText().replace("$", "$tuple/");
         StringBuilder builder = new StringBuilder(retExpression);
         /* Add star after each variable in the tuple */
@@ -116,26 +110,26 @@ class Join_visiter extends JoinBaseVisitor<Object> {
 
 class VariableTree {
 
-    private TreeNode rootNode;
+    private TreeNode root;
 
-    private HashMap<String, TreeNode> variableMap;
+    private HashMap<String, TreeNode> varMap;
 
     private ArrayList<JoinNode> joinNodes;
 
     public VariableTree() {
-        rootNode = new TreeNode();
-        variableMap = new HashMap<String, TreeNode>();
+        root = new TreeNode();
+        varMap = new HashMap<String, TreeNode>();
         joinNodes = new ArrayList<JoinNode>();
-        variableMap.put("rootNode", rootNode);
+        varMap.put("root", root);
     }
 
     public void addVar(String var, String var2, String path) {
-        if (variableMap.containsKey(var)) {
+        if (varMap.containsKey(var)) {
             throw new IllegalStateException("for has duplicate vars.");
         }
 
         // Get the parent node
-        TreeNode pnode = (var2 == null) ? rootNode : variableMap.get(var2);
+        TreeNode pnode = (var2 == null) ? root : varMap.get(var2);
         if (pnode == null) {
             throw new IllegalStateException();
         }
@@ -146,20 +140,15 @@ class VariableTree {
         node.relativePath = path;
         node.var = var;
         pnode.children.add(node);
-        variableMap.put(var, node);
+        varMap.put(var, node);
 
         // Assign this node to one Join Node
         assignJoinNum(node);
     }
 
-    /**
-     * Add one join condition between join nodes
-     * @param var1  var name of node 1 to join
-     * @param var2  var name of node 2 to join
-     */
     public void addJoin(String var1, String var2) {
-        TreeNode node1 = variableMap.get(var1);
-        TreeNode node2 = variableMap.get(var2);
+        TreeNode node1 = varMap.get(var1);
+        TreeNode node2 = varMap.get(var2);
         if (node1 == null || node2 == null) {
             throw new IllegalStateException();
         }
@@ -167,55 +156,45 @@ class VariableTree {
         JoinNode joinNode1 = joinNodes.get(node1.joinNum);
         JoinNode joinNode2 = joinNodes.get(node2.joinNum);
 
-        JoinNode.OuterCond(joinNode1, node1, joinNode2, node2);
+        JoinNode.addJoin(joinNode1, node1, joinNode2, node2);
     }
 
-    /**
-     * Add one self condition to one one join node
-     * @param var   var name of the condition
-     * @param constant  const condition
-     */
     public void addSelfCond(String var, String constant) {
-        TreeNode node = variableMap.get(var);
+        TreeNode node = varMap.get(var);
         if (node == null) {
             throw new IllegalStateException();
         }
 
         JoinNode joinNode = joinNodes.get(node.joinNum);
-        joinNode.InnerCond(node, constant);
+        joinNode.addSelfCond(node, constant);
     }
 
-    /**
-     * Assign one node to its join node
-     * @param node  node to assign
-     * @return  join number
-     */
     public int assignJoinNum(TreeNode node) {
         if (node.joinNum == -1) {
 
-            ArrayList<TreeNode> path = new ArrayList<TreeNode>();
-            TreeNode currentNode = node;
+            LinkedList<TreeNode> path = new LinkedList<TreeNode>();
+            TreeNode currNode = node;
 
-            /* Go upwards, until find one assigned node or reach the rootNode*/
-            while (currentNode != rootNode && currentNode.joinNum == -1) {
-                path.add(0, currentNode);
-                currentNode = currentNode.parent;
+            /* Go upwards, until find one assigned node or reach the root*/
+            while (currNode != root && currNode.joinNum == -1) {
+                path.add(0, currNode);
+                currNode = currNode.parent;
             }
 
-            if (currentNode != rootNode) {
+            if (currNode != root) {
                 /* If find one assigned node, then assign to the same node */
                 for (TreeNode n : path) {
-                    JoinNode joinNode = joinNodes.get(currentNode.joinNum);
-                    joinNode.varSet.add(n);
-                    n.joinNum = currentNode.joinNum;
+                    JoinNode joinNode = joinNodes.get(currNode.joinNum);
+                    joinNode.variableSet.add(n);
+                    n.joinNum = currNode.joinNum;
                 }
             } else {
-                /* If reach the rootNode, then create a new join node and assign */
+                /* If reach the root, then create a new join node and assign */
                 int num = joinNodes.size();
                 JoinNode joinNode = new JoinNode(num);
                 joinNodes.add(joinNode);
                 for (TreeNode n : path) {
-                    joinNode.varSet.add(n);
+                    joinNode.variableSet.add(n);
                     n.joinNum = num;
                 }
             }
@@ -223,17 +202,12 @@ class VariableTree {
         return node.joinNum;
     }
 
-    /**
-     * Merge all join nodes in the join node list
-     * @return  Merged expression
-     */
     public String mergeAllJoinNode() {
         while (joinNodes.size() != 1) {
             JoinNode node1 = joinNodes.remove(0);
             JoinNode node12 = null;
             if (node1.joinTable.keySet().size() != 0) {
                 node12 = node1.joinTable.keySet().iterator().next();
-            /*JoinNode node2 = */
                 if (!joinNodes.remove(node12)) {
                     throw new IllegalStateException();
                 }
@@ -246,47 +220,42 @@ class VariableTree {
         return joinNodes.get(0).getExpression();
     }
 
-    /**
-     * Merge two join nodes and return the merged one
-     * @param n1    join node 1
-     * @param n2    join node 2
-     * @return      new merged node
-     */
-    public JoinNode mergeJoinNode(JoinNode n1, JoinNode n2) {
+    public JoinNode mergeJoinNode(JoinNode node1, JoinNode node2) {
 
         /* Remove each other from the join table */
-        Map<TreeNode, TreeNode> joinMap = n1.joinTable.remove(n2);
-        n2.joinTable.remove(n1);
+        Map<TreeNode, TreeNode> joinMap = node1.joinTable.remove(node2);
+        node2.joinTable.remove(node1);
 
         /* Add other join conditions to the new node's join map */
-        JoinNode newNode = new JoinNode(n1.joinNum);
-        for (JoinNode n : n1.joinTable.keySet()) {
-            if (newNode.joinTable.containsKey(n)) {
-                newNode.joinTable.get(n).putAll(n1.joinTable.get(n));
+        JoinNode newNode = new JoinNode(node1.joinNum);
+        for (JoinNode node : node1.joinTable.keySet()) {
+            if (newNode.joinTable.containsKey(node)) {
+                newNode.joinTable.get(node).putAll(node1.joinTable.get(node));
             } else {
-                newNode.joinTable.put(n, n1.joinTable.get(n));
+                newNode.joinTable.put(node, node1.joinTable.get(node));
             }
         }
-        for (JoinNode n : n2.joinTable.keySet()) {
+        for (JoinNode n : node2.joinTable.keySet()) {
             if (newNode.joinTable.containsKey(n)) {
-                newNode.joinTable.get(n).putAll(n2.joinTable.get(n));
+                newNode.joinTable.get(n).putAll(node2.joinTable.get(n));
             } else {
-                newNode.joinTable.put(n, n2.joinTable.get(n));
+                newNode.joinTable.put(n, node2.joinTable.get(n));
             }
         }
-        for (JoinNode n : joinNodes) {
-            Map<TreeNode, TreeNode> mapToN1 = n.joinTable.remove(n1);
-            Map<TreeNode, TreeNode> mapToN2 = n.joinTable.remove(n2);
-            if (mapToN1 != null) n.joinTable.put(newNode, mapToN1);
-            if (mapToN2 != null) n.joinTable.put(newNode, mapToN2);
+        for (JoinNode node : joinNodes) {
+            Map<TreeNode, TreeNode> mapToN1 = node.joinTable.remove(node1);
+            Map<TreeNode, TreeNode> mapToN2 = node.joinTable.remove(node2);
+
+            if (mapToN1 != null) node.joinTable.put(newNode, mapToN1);
+            if (mapToN2 != null) node.joinTable.put(newNode, mapToN2);
         }
 
         /* Construct the join expression */
         StringBuilder res = new StringBuilder();
         res.append("join(\n");
-        res.append(n1.getExpression());
+        res.append(node1.getExpression());
         res.append(",\n");
-        res.append(n2.getExpression());
+        res.append(node2.getExpression());
         res.append(",\n");
 
         /* Construct the join cond list expression */
@@ -319,8 +288,8 @@ class VariableTree {
     @Override
     public String toString() {
         StringBuilder res = new StringBuilder();
-        res.append("VariableTree:\n");
-        for (TreeNode n : variableMap.values()) {
+        res.append("LabelTree:\n");
+        for (TreeNode n : varMap.values()) {
             res.append("\n" + n.var + " | " + n.relativePath + "\n");
             res.append("children: \n");
             for (TreeNode c : n.children) {
@@ -341,11 +310,11 @@ class TreeNode {
     public String var;
     public String relativePath;
     public TreeNode parent;
-    public ArrayList<TreeNode> children;
+    public LinkedList<TreeNode> children;
     public int joinNum;
 
     public TreeNode() {
-        children = new ArrayList<TreeNode>();
+        children = new LinkedList<TreeNode>();
         joinNum = -1;
     }
 }
@@ -353,44 +322,40 @@ class TreeNode {
 class JoinNode {
 
     public int joinNum;
-    public ArrayList<TreeNode> varSet;
-    public HashMap<JoinNode, Map<TreeNode, TreeNode>> joinTable;
-    public HashMap<TreeNode, String> selfCondMap;
-    public HashMap<TreeNode, TreeNode> selfJoinMap;
+    public LinkedList<TreeNode> variableSet;
+    public Map<JoinNode, Map<TreeNode, TreeNode>> joinTable;
+    public Map<TreeNode, String> InnerCondMap;
+    public Map<TreeNode, TreeNode> InnerJoinMap;
     public String expression;
 
     public JoinNode(int joinNum) {
         this.joinNum = joinNum;
-        varSet = new ArrayList<TreeNode>();
+        variableSet = new LinkedList<TreeNode>();
         joinTable = new HashMap<JoinNode, Map<TreeNode, TreeNode>>();
-        selfCondMap = new HashMap<TreeNode, String>();
-        selfJoinMap = new HashMap<TreeNode, TreeNode>();
+        InnerCondMap = new HashMap<TreeNode, String>();
+        InnerJoinMap = new HashMap<TreeNode, TreeNode>();
     }
 
-    /**
-     * Get experssion for one single join node
-     * @return  string of the expression
-     */
     public String getExpression() {
         if (expression == null) {
             StringBuilder exp = new StringBuilder();
             exp.append("for\n");
-            for (TreeNode n : varSet) {
+            for (TreeNode n : variableSet) {
                 exp.append("\t" + n.var + " in " + n.relativePath + ",\n");
             }
             exp.deleteCharAt(exp.length()-2);
-            if (selfCondMap.size() != 0 || selfJoinMap.size() != 0) {
+            if (InnerCondMap.size() != 0 || InnerJoinMap.size() != 0) {
                 exp.append("where\n");
-                for (TreeNode n : selfCondMap.keySet()) {
-                    exp.append("\t"+n.var+" eq "+selfCondMap.get(n)+",\n");
+                for (TreeNode n : InnerCondMap.keySet()) {
+                    exp.append("\t"+n.var+" eq "+ InnerCondMap.get(n)+",\n");
                 }
-                for (TreeNode n : selfJoinMap.keySet()) {
-                    exp.append("\t"+n.var+" eq "+selfJoinMap.get(n).var+",\n");
+                for (TreeNode n : InnerJoinMap.keySet()) {
+                    exp.append("\t"+n.var+" eq "+ InnerJoinMap.get(n).var+",\n");
                 }
                 exp.deleteCharAt(exp.length()-2);
             }
             exp.append("return\n<tuple>{\n");
-            for (TreeNode n : varSet) {
+            for (TreeNode n : variableSet) {
                 exp.append("\t<"+n.var.substring(1)+">{" +n.var +"}</"
                         +n.var.substring(1)+">,\n");
             }
@@ -402,8 +367,8 @@ class JoinNode {
         return expression;
     }
 
-    public void InnerCond(TreeNode n, String constant) {
-        selfCondMap.put(n, constant);
+    public void addSelfCond(TreeNode n, String constant) {
+        InnerCondMap.put(n, constant);
     }
 
     @Override
@@ -412,7 +377,7 @@ class JoinNode {
         res.append("#########\n");
         res.append("JoinNode:" + joinNum + "\n");
         res.append("var list:\n");
-        for (TreeNode n : varSet) {
+        for (TreeNode n : variableSet) {
             res.append(n.var + " | " + n.relativePath + "\n");
         }
         res.append("Join cond:\n");
@@ -423,16 +388,16 @@ class JoinNode {
             }
         }
         res.append("Self Cond:\n");
-        for (TreeNode n : selfCondMap.keySet()) {
-            res.append(n.var+" -|> "+ selfCondMap.get(n) +"\n");
+        for (TreeNode n : InnerCondMap.keySet()) {
+            res.append(n.var+" -|> "+ InnerCondMap.get(n) +"\n");
         }
         return res.toString();
     }
 
-    public static void OuterCond(JoinNode n1, TreeNode v1, JoinNode n2, TreeNode v2) {
+    public static void addJoin(JoinNode n1, TreeNode v1, JoinNode n2, TreeNode v2) {
 
         if (n1 == n2) {
-            n1.selfJoinMap.put(v1, v2);
+            n1.InnerJoinMap.put(v1, v2);
         } else {
             if (!n1.joinTable.containsKey(n2)) {
                 n1.joinTable.put(n2, new HashMap<TreeNode, TreeNode>());
